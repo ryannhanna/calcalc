@@ -90,6 +90,9 @@ async function syncFromFitbit(
 
   const data = await res.json();
 
+  // Debug: log unit detection info to browser console
+  console.log('[Fitbit Sync Debug]', data._debug);
+
   // Build lookup maps: date → value
   const calMap = new Map<string, number>();
   for (const item of data.calories ?? []) {

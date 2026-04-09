@@ -11,7 +11,6 @@ export async function POST(req: NextRequest) {
   const headers = { Authorization: `Bearer ${accessToken}` };
 
   try {
-    // Fetch profile, calories, and weight in parallel
     const [profileRes, calRes, weightRes] = await Promise.all([
       fetch('https://api.fitbit.com/1/user/-/profile.json', { headers }),
       fetch(
@@ -38,20 +37,20 @@ export async function POST(req: NextRequest) {
       weightRes.json(),
     ]);
 
-    // Determine what unit Fitbit is actually returning based on user's Fitbit account setting
-    // weightUnit in profile is 'en_US' (lbs) or 'METRIC' (kg)
-    const fitbitWeightUnit: 'lb' | 'kg' =
-      profileData?.user?.weightUnit === 'en_US' ? 'lb' : 'kg';
+    // Read the raw unit field from Fitbit profile so we can detect it exactly
+    const rawWeightUnit: string = profileData?.user?.weightUnit ?? 'UNKNOWN';
+
+    // Fitbit returns 'en_US' for lbs, anything else (METRIC, en_GB, etc.) is kg
+    const fitbitIsLbs = rawWeightUnit === 'en_US';
 
     const rawWeights: { dateTime: string; value: string }[] = weightData['body-weight'] ?? [];
 
-    // Convert from Fitbit's unit to the app's unit
     const weights = rawWeights.map((item) => {
       const raw = parseFloat(item.value);
       let converted = raw;
-      if (fitbitWeightUnit === 'kg' && unit === 'lb') {
+      if (!fitbitIsLbs && unit === 'lb') {
         converted = raw * 2.20462; // kg → lb
-      } else if (fitbitWeightUnit === 'lb' && unit === 'kg') {
+      } else if (fitbitIsLbs && unit === 'kg') {
         converted = raw / 2.20462; // lb → kg
       }
       return { dateTime: item.dateTime, value: String(parseFloat(converted.toFixed(1))) };
@@ -60,6 +59,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       calories: calData['foods-log-caloriesIn'] ?? [],
       weights,
+      // Include for debugging — remove once unit issue is confirmed fixed
+      _debug: { fitbitWeightUnit: rawWeightUnit, fitbitIsLbs, appUnit: unit },
     });
   } catch {
     return NextResponse.json({ error: 'fetch_failed' }, { status: 500 });
