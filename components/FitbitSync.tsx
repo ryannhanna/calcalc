@@ -79,7 +79,7 @@ async function syncFromFitbit(
   const res = await fetch('/api/fitbit/sync', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ accessToken: token, startDate: settings.startingDate }),
+    body: JSON.stringify({ accessToken: token, startDate: settings.startingDate, unit: settings.unit }),
   });
 
   if (res.status === 401) {
@@ -120,8 +120,8 @@ async function syncFromFitbit(
 
       const fitbitWeight = weightMap.get(date);
       if (fitbitWeight !== undefined) {
-        // Fitbit returns weight in the user's account unit (lbs or kg)
-        newWeights[d] = fitbitWeight;
+        // Fitbit returns in the app's unit (en_US = lbs, en_GB = kg) — no conversion needed
+        newWeights[d] = parseFloat(fitbitWeight.toFixed(1));
       }
     }
 

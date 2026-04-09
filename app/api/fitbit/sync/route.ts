@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 export async function POST(req: NextRequest) {
-  const { accessToken, startDate } = await req.json();
+  const { accessToken, startDate, unit } = await req.json();
 
   if (!accessToken || !startDate) {
     return NextResponse.json({ error: 'missing_params' }, { status: 400 });
@@ -15,9 +15,10 @@ export async function POST(req: NextRequest) {
         `https://api.fitbit.com/1/user/-/foods/log/caloriesIn/date/${startDate}/${today}.json`,
         { headers: { Authorization: `Bearer ${accessToken}` } }
       ),
+      // Accept-Language: en_US = lbs, en_GB = kg
       fetch(
         `https://api.fitbit.com/1/user/-/body/weight/date/${startDate}/${today}.json`,
-        { headers: { Authorization: `Bearer ${accessToken}` } }
+        { headers: { Authorization: `Bearer ${accessToken}`, 'Accept-Language': unit === 'lb' ? 'en_US' : 'en_GB' } }
       ),
     ]);
 
