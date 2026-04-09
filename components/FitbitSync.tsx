@@ -163,10 +163,14 @@ export default function FitbitSync({ settings, entries, onSynced }: Props) {
       setMessage('Fitbit Client ID not configured. See setup instructions.');
       return;
     }
-    const redirectUri = encodeURIComponent(`${window.location.origin}/api/fitbit/callback`);
-    const scope = encodeURIComponent(FITBIT_SCOPES);
-    window.location.href =
-      `https://www.fitbit.com/oauth2/authorize?response_type=code&client_id=${clientId}&redirect_uri=${redirectUri}&scope=${scope}`;
+    const redirectUri = `${window.location.origin}/api/fitbit/callback`;
+    const params = new URLSearchParams({
+      response_type: 'code',
+      client_id: clientId,
+      redirect_uri: redirectUri,
+      scope: FITBIT_SCOPES,
+    });
+    window.location.href = `https://www.fitbit.com/oauth2/authorize?${params.toString()}`;
   }
 
   async function handleSync() {
