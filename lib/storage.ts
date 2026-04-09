@@ -40,25 +40,28 @@ export function saveEntries(entries: WeeklyEntry[]): void {
   localStorage.setItem(ENTRIES_KEY, JSON.stringify(entries));
 }
 
-// ─── Ensure weeks exist up to today ──────────────────────────────────────────
-// Given the starting date from settings, generate all week entries from week 1
-// through the week containing today.
+// ─── Generate all weeks (past + 52 weeks into the future) ───────────────────
+// Weeks are generated from the starting date forward indefinitely.
+// 52 future weeks are always available; past data is always preserved.
 
-export function syncWeeksToToday(settings: UserSettings): WeeklyEntry[] {
+const FUTURE_WEEKS = 52;
+
+export function syncWeeks(settings: UserSettings): WeeklyEntry[] {
   const existing = getEntries();
   const startDate = parseISO(settings.startingDate);
   const today = new Date();
 
-  // How many weeks have elapsed since start?
+  // Weeks elapsed since start (minimum 1)
   const daysDiff = differenceInCalendarDays(today, startDate);
-  const weeksNeeded = Math.max(1, Math.floor(daysDiff / 7) + 1);
+  const weeksPast = Math.max(1, Math.floor(daysDiff / 7) + 1);
+  const totalWeeks = weeksPast + FUTURE_WEEKS;
 
   const entryMap = new Map<string, WeeklyEntry>(
     existing.map((e) => [e.weekStartDate, e])
   );
 
   const updated: WeeklyEntry[] = [];
-  for (let i = 0; i < weeksNeeded; i++) {
+  for (let i = 0; i < totalWeeks; i++) {
     const weekStart = format(addDays(startDate, i * 7), 'yyyy-MM-dd');
     updated.push(
       entryMap.get(weekStart) ?? {
@@ -72,6 +75,9 @@ export function syncWeeksToToday(settings: UserSettings): WeeklyEntry[] {
   saveEntries(updated);
   return updated;
 }
+
+// Keep old name as alias so dashboard still works
+export const syncWeeksToToday = syncWeeks;
 
 // ─── Day-index helper ─────────────────────────────────────────────────────────
 // Given a weekStartDate and today, return which day index (0-6) corresponds to today.

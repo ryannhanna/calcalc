@@ -12,6 +12,7 @@ interface Props {
   prevAvgWeight: number | null; // previous week's avg weight (or starting weight for w1)
   todayDayIndex: number; // -1 if today is not in this week
   tdee: number | null;
+  isCurrent?: boolean;
   onWeightChange: (dayIndex: number, value: number | null) => void;
   onCaloriesChange: (dayIndex: number, value: number | null) => void;
   onMeasurementsChange: (field: 'waist' | 'neck' | 'hip', value: number | null) => void;
@@ -26,6 +27,7 @@ export default function WeekCard({
   prevAvgWeight,
   todayDayIndex,
   tdee,
+  isCurrent = false,
   onWeightChange,
   onCaloriesChange,
   onMeasurementsChange,
@@ -57,13 +59,18 @@ export default function WeekCard({
     'w-full rounded border border-blue-300 bg-blue-50 px-1 py-1 text-center text-xs text-blue-900 font-medium focus:border-blue-500 focus:bg-white focus:outline-none focus:ring-1 focus:ring-blue-500';
 
   return (
-    <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
+    <div className={`bg-white rounded-xl border shadow-sm p-4 ${isCurrent ? 'border-blue-400 ring-2 ring-blue-100' : 'border-gray-200'}`}>
       {/* Header */}
       <div className="flex items-center justify-between mb-3">
         <div>
           <span className="text-xs font-bold text-gray-400 uppercase tracking-wide">
             Week {weekNumber}
           </span>
+          {isCurrent && (
+            <span className="ml-2 text-xs font-semibold bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">
+              Current
+            </span>
+          )}
           <span className="text-sm text-gray-600 ml-2">
             {format(startDate, 'MMM d')} – {format(endDate, 'MMM d, yyyy')}
           </span>

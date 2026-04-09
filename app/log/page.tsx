@@ -1,10 +1,10 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   getSettings,
-  syncWeeksToToday,
+  syncWeeks,
   getCurrentWeekStartDate,
   getTodayDayIndex,
   updateDailyValue,
@@ -20,6 +20,7 @@ export default function LogPage() {
   const [settings, setSettings] = useState<UserSettings | null>(null);
   const [entries, setEntries] = useState<WeeklyEntry[]>([]);
   const [loading, setLoading] = useState(true);
+  const todayRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     const s = getSettings();
@@ -28,10 +29,17 @@ export default function LogPage() {
       return;
     }
     setSettings(s);
-    const synced = syncWeeksToToday(s);
+    const synced = syncWeeks(s);
     setEntries(synced);
     setLoading(false);
   }, [router]);
+
+  // Scroll to current week on first load
+  useEffect(() => {
+    if (!loading && todayRef.current) {
+      todayRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }, [loading]);
 
   if (loading || !settings) return null;
 
@@ -62,50 +70,69 @@ export default function LogPage() {
     saveEntries(updated);
   }
 
-  // Reverse so current week is at top
-  const reversedEntries = [...entries].reverse();
-  const reversedSummaries = [...summaries].reverse();
+  function scrollToToday() {
+    todayRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
 
   return (
     <div className="max-w-3xl mx-auto px-4 py-6 space-y-4">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">Weekly Log</h1>
-        <p className="text-sm text-gray-500 mt-0.5">
-          Enter your daily weight and calories. Missing days are excluded from averages.
-        </p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Weekly Log</h1>
+          <p className="text-sm text-gray-500 mt-0.5">
+            All weeks — past and future. Edit any week at any time.
+          </p>
+        </div>
+        <button
+          onClick={scrollToToday}
+          className="shrink-0 rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700"
+        >
+          Jump to Today
+        </button>
       </div>
 
-      {reversedEntries.map((entry, ri) => {
-        // Since we reversed, map back to original index
-        const originalIndex = entries.length - 1 - ri;
-        const summary = reversedSummaries[ri];
+      {entries.map((entry, i) => {
+        const summary = summaries[i];
         const isCurrentWeek = entry.weekStartDate === currentWeekStart;
+        const isFuture = entry.weekStartDate > currentWeekStart;
         const todayDayIndex = isCurrentWeek ? getTodayDayIndex(entry.weekStartDate) : -1;
         const prevAvgWeight =
-          originalIndex === 0
+          i === 0
             ? settings.startingWeight
-            : avgNonNull(entries[originalIndex - 1].weights);
+            : avgNonNull(entries[i - 1].weights);
 
         return (
-          <WeekCard
-            key={entry.weekStartDate}
-            entry={entry}
-            weekNumber={originalIndex + 1}
-            weeklyGoal={settings.weeklyGoal}
-            settings={settings}
-            prevAvgWeight={prevAvgWeight}
-            todayDayIndex={todayDayIndex}
-            tdee={summary.tdee}
-            onWeightChange={(dayIndex, value) =>
-              handleWeightChange(entry.weekStartDate, dayIndex, value)
-            }
-            onCaloriesChange={(dayIndex, value) =>
-              handleCaloriesChange(entry.weekStartDate, dayIndex, value)
-            }
-            onMeasurementsChange={(field, value) =>
-              handleMeasurementsChange(entry.weekStartDate, field, value)
-            }
-          />
+          <div key={entry.weekStartDate} ref={isCurrentWeek ? todayRef : undefined}>
+            {/* Divider between past and future */}
+            {isFuture && entry.weekStartDate === entries.find(e => e.weekStartDate > currentWeekStart)?.weekStartDate && (
+              <div className="flex items-center gap-3 py-2">
+                <div className="flex-1 border-t border-dashed border-gray-300" />
+                <span className="text-xs font-medium text-gray-400 uppercase tracking-wide">
+                  Upcoming weeks
+                </span>
+                <div className="flex-1 border-t border-dashed border-gray-300" />
+              </div>
+            )}
+            <WeekCard
+              entry={entry}
+              weekNumber={i + 1}
+              weeklyGoal={settings.weeklyGoal}
+              settings={settings}
+              prevAvgWeight={prevAvgWeight}
+              todayDayIndex={todayDayIndex}
+              tdee={summary.tdee}
+              isCurrent={isCurrentWeek}
+              onWeightChange={(dayIndex, value) =>
+                handleWeightChange(entry.weekStartDate, dayIndex, value)
+              }
+              onCaloriesChange={(dayIndex, value) =>
+                handleCaloriesChange(entry.weekStartDate, dayIndex, value)
+              }
+              onMeasurementsChange={(field, value) =>
+                handleMeasurementsChange(entry.weekStartDate, field, value)
+              }
+            />
+          </div>
         );
       })}
     </div>
