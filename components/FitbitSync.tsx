@@ -6,7 +6,7 @@ import { UserSettings, WeeklyEntry } from '../lib/types';
 import { saveEntries } from '../lib/storage';
 
 const FITBIT_AUTH_KEY = 'fitbit_auth';
-const FITBIT_SCOPES = 'nutrition weight';
+const FITBIT_SCOPES = 'nutrition weight profile';
 
 interface FitbitAuth {
   accessToken: string;
