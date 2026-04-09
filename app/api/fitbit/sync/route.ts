@@ -15,10 +15,10 @@ export async function POST(req: NextRequest) {
         `https://api.fitbit.com/1/user/-/foods/log/caloriesIn/date/${startDate}/${today}.json`,
         { headers: { Authorization: `Bearer ${accessToken}` } }
       ),
-      // Accept-Language: en_US = lbs, en_GB = kg
+      // Always fetch weight in metric (kg) — we convert on the server before returning
       fetch(
         `https://api.fitbit.com/1/user/-/body/weight/date/${startDate}/${today}.json`,
-        { headers: { Authorization: `Bearer ${accessToken}`, 'Accept-Language': unit === 'lb' ? 'en_US' : 'en_GB' } }
+        { headers: { Authorization: `Bearer ${accessToken}`, 'Accept-Language': 'en_GB' } }
       ),
     ]);
 
@@ -32,9 +32,18 @@ export async function POST(req: NextRequest) {
 
     const [calData, weightData] = await Promise.all([calRes.json(), weightRes.json()]);
 
+    // Convert weights from kg (always returned by en_GB) to app unit
+    const rawWeights: { dateTime: string; value: string }[] = weightData['body-weight'] ?? [];
+    const weights = rawWeights.map((item) => ({
+      dateTime: item.dateTime,
+      value: unit === 'lb'
+        ? String(parseFloat((parseFloat(item.value) * 2.20462).toFixed(1)))
+        : item.value,
+    }));
+
     return NextResponse.json({
       calories: calData['foods-log-caloriesIn'] ?? [],
-      weights: weightData['body-weight'] ?? [],
+      weights,
     });
   } catch {
     return NextResponse.json({ error: 'fetch_failed' }, { status: 500 });
