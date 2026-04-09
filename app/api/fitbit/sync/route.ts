@@ -11,8 +11,7 @@ export async function POST(req: NextRequest) {
   const headers = { Authorization: `Bearer ${accessToken}` };
 
   try {
-    const [profileRes, calRes, weightRes] = await Promise.all([
-      fetch('https://api.fitbit.com/1/user/-/profile.json', { headers }),
+    const [calRes, weightRes] = await Promise.all([
       fetch(
         `https://api.fitbit.com/1/user/-/foods/log/caloriesIn/date/${startDate}/${today}.json`,
         { headers }
@@ -23,44 +22,30 @@ export async function POST(req: NextRequest) {
       ),
     ]);
 
-    if (profileRes.status === 401 || calRes.status === 401 || weightRes.status === 401) {
+    if (calRes.status === 401 || weightRes.status === 401) {
       return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
     }
 
-    if (!profileRes.ok || !calRes.ok || !weightRes.ok) {
+    if (!calRes.ok || !weightRes.ok) {
       return NextResponse.json({ error: 'fitbit_api_error' }, { status: 502 });
     }
 
-    const [profileData, calData, weightData] = await Promise.all([
-      profileRes.json(),
-      calRes.json(),
-      weightRes.json(),
-    ]);
+    const [calData, weightData] = await Promise.all([calRes.json(), weightRes.json()]);
 
-    // Read the raw unit field from Fitbit profile so we can detect it exactly
-    const rawWeightUnit: string = profileData?.user?.weightUnit ?? 'UNKNOWN';
-
-    // Fitbit returns 'en_US' for lbs, anything else (METRIC, en_GB, etc.) is kg
-    const fitbitIsLbs = rawWeightUnit === 'en_US';
-
+    // The Fitbit body weight time series always returns kg regardless of profile/account
+    // settings — profile weightUnit field is unreliable for this endpoint.
+    // So we always convert from kg to the app's unit.
     const rawWeights: { dateTime: string; value: string }[] = weightData['body-weight'] ?? [];
 
     const weights = rawWeights.map((item) => {
-      const raw = parseFloat(item.value);
-      let converted = raw;
-      if (!fitbitIsLbs && unit === 'lb') {
-        converted = raw * 2.20462; // kg → lb
-      } else if (fitbitIsLbs && unit === 'kg') {
-        converted = raw / 2.20462; // lb → kg
-      }
+      const kg = parseFloat(item.value);
+      const converted = unit === 'lb' ? kg * 2.20462 : kg;
       return { dateTime: item.dateTime, value: String(parseFloat(converted.toFixed(1))) };
     });
 
     return NextResponse.json({
       calories: calData['foods-log-caloriesIn'] ?? [],
       weights,
-      // Include for debugging — remove once unit issue is confirmed fixed
-      _debug: { fitbitWeightUnit: rawWeightUnit, fitbitIsLbs, appUnit: unit },
     });
   } catch {
     return NextResponse.json({ error: 'fetch_failed' }, { status: 500 });
