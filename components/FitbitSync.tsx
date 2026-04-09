@@ -66,14 +66,6 @@ async function getValidToken(): Promise<string | null> {
 
 // ─── Fitbit API fetch helpers ─────────────────────────────────────────────────
 
-async function fitbitGet(path: string, token: string) {
-  const res = await fetch(`https://api.fitbit.com${path}`, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
-  if (!res.ok) throw new Error(`Fitbit API error: ${res.status}`);
-  return res.json();
-}
-
 // ─── Sync logic ───────────────────────────────────────────────────────────────
 
 async function syncFromFitbit(
@@ -83,36 +75,36 @@ async function syncFromFitbit(
   const token = await getValidToken();
   if (!token) throw new Error('Not connected to Fitbit');
 
-  const startDate = settings.startingDate;
-  const today = format(new Date(), 'yyyy-MM-dd');
+  // Call our server-side proxy to avoid CORS
+  const res = await fetch('/api/fitbit/sync', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ accessToken: token, startDate: settings.startingDate }),
+  });
 
-  // Fetch calorie and weight time series in two requests
-  const [calData, weightData] = await Promise.all([
-    fitbitGet(
-      `/1/user/-/foods/log/caloriesIn/date/${startDate}/${today}.json`,
-      token
-    ),
-    fitbitGet(
-      `/1/user/-/body/weight/date/${startDate}/${today}.json`,
-      token
-    ),
-  ]);
+  if (res.status === 401) {
+    clearFitbitAuth();
+    throw new Error('Fitbit session expired — please reconnect');
+  }
+  if (!res.ok) throw new Error('Sync failed — please try again');
+
+  const data = await res.json();
 
   // Build lookup maps: date → value
   const calMap = new Map<string, number>();
-  for (const item of calData['foods-log-caloriesIn'] ?? []) {
+  for (const item of data.calories ?? []) {
     const cal = parseInt(item.value, 10);
     if (cal > 0) calMap.set(item.dateTime, cal);
   }
 
   const weightMap = new Map<string, number>();
-  for (const item of weightData['body-weight'] ?? []) {
+  for (const item of data.weights ?? []) {
     const w = parseFloat(item.value);
     if (w > 0) weightMap.set(item.dateTime, w);
   }
 
   // Apply to entries
-  const startISO = parseISO(settings.startingDate);
+  const today = format(new Date(), 'yyyy-MM-dd');
   const updated = entries.map((entry) => {
     const weekStart = parseISO(entry.weekStartDate);
     const newWeights = [...entry.weights] as (number | null)[];
