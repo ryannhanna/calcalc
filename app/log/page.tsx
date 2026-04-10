@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useEffect, useRef, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import {
   getSettings,
@@ -31,7 +31,6 @@ function LogPageInner() {
   const [entries, setEntries] = useState<WeeklyEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [fitbitError, setFitbitError] = useState('');
-  const todayRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     const s = getSettings();
@@ -74,17 +73,20 @@ function LogPageInner() {
     }
   }, [searchParams]);
 
-  // Scroll to current week on first load
-  useEffect(() => {
-    if (!loading && todayRef.current) {
-      todayRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }
-  }, [loading]);
 
   if (loading || !settings) return null;
 
   const summaries = buildWeekSummaries(entries, settings);
   const currentWeekStart = getCurrentWeekStartDate(settings);
+
+  // Build a summary lookup by weekStartDate so we can reorder for display
+  const summaryMap = new Map(entries.map((e, i) => [e.weekStartDate, summaries[i]]));
+
+  // Display: current week first, then future weeks, then past weeks newest→oldest
+  const currentEntries = entries.filter(e => e.weekStartDate === currentWeekStart);
+  const futureEntries = entries.filter(e => e.weekStartDate > currentWeekStart);
+  const pastEntries = entries.filter(e => e.weekStartDate < currentWeekStart).reverse();
+  const displayEntries = [...currentEntries, ...futureEntries, ...pastEntries];
 
   function handleWeightChange(weekStart: string, dayIndex: number, value: number | null) {
     const updated = updateDailyValue(entries, weekStart, 'weights', dayIndex, value);
@@ -111,7 +113,7 @@ function LogPageInner() {
   }
 
   function scrollToToday() {
-    todayRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
   return (
@@ -145,31 +147,33 @@ function LogPageInner() {
         </div>
       )}
 
-      {entries.map((entry, i) => {
-        const summary = summaries[i];
+      {displayEntries.map((entry) => {
+        const summary = summaryMap.get(entry.weekStartDate)!;
         const isCurrentWeek = entry.weekStartDate === currentWeekStart;
         const isFuture = entry.weekStartDate > currentWeekStart;
         const todayDayIndex = isCurrentWeek ? getTodayDayIndex(entry.weekStartDate) : -1;
+        const chronoIndex = entries.findIndex(e => e.weekStartDate === entry.weekStartDate);
         const prevAvgWeight =
-          i === 0
+          chronoIndex === 0
             ? settings.startingWeight
-            : avgNonNull(entries[i - 1].weights);
+            : avgNonNull(entries[chronoIndex - 1].weights);
+        const weekNumber = chronoIndex + 1;
 
         return (
-          <div key={entry.weekStartDate} ref={isCurrentWeek ? todayRef : undefined}>
-            {/* Divider between past and future */}
-            {isFuture && entry.weekStartDate === entries.find(e => e.weekStartDate > currentWeekStart)?.weekStartDate && (
+          <div key={entry.weekStartDate}>
+            {/* Divider between future/current and past history */}
+            {!isFuture && !isCurrentWeek && entry.weekStartDate === pastEntries[0]?.weekStartDate && (
               <div className="flex items-center gap-3 py-2">
                 <div className="flex-1 border-t border-dashed border-gray-300" />
                 <span className="text-xs font-medium text-gray-400 uppercase tracking-wide">
-                  Upcoming weeks
+                  Previous weeks
                 </span>
                 <div className="flex-1 border-t border-dashed border-gray-300" />
               </div>
             )}
             <WeekCard
               entry={entry}
-              weekNumber={i + 1}
+              weekNumber={weekNumber}
               weeklyGoal={settings.weeklyGoal}
               settings={settings}
               prevAvgWeight={prevAvgWeight}
