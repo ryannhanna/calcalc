@@ -39,7 +39,9 @@ export async function POST(req: NextRequest) {
 
     const weights = rawWeights.map((item) => {
       const kg = parseFloat(item.value);
-      const converted = unit === 'lb' ? kg * 2.20462 : kg;
+      // Fitbit body weight time series always returns kg.
+      // Default to lbs conversion unless the app is explicitly set to kg.
+      const converted = unit === 'kg' ? kg : kg * 2.20462;
       return { dateTime: item.dateTime, value: String(parseFloat(converted.toFixed(1))) };
     });
 
