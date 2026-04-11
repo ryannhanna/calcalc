@@ -90,6 +90,8 @@ async function syncFromFitbit(
 
   const data = await res.json();
 
+  console.log('[Fitbit Debug]', JSON.stringify(data._debug, null, 2));
+
   // Build lookup maps: date → value
   const calMap = new Map<string, number>();
   for (const item of data.calories ?? []) {

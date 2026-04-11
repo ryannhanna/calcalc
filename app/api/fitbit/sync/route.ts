@@ -48,6 +48,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       calories: calData['foods-log-caloriesIn'] ?? [],
       weights,
+      _debug: {
+        appUnit: unit,
+        rawSample: rawWeights.slice(0, 3),
+        convertedSample: weights.slice(0, 3),
+      },
     });
   } catch {
     return NextResponse.json({ error: 'fetch_failed' }, { status: 500 });
